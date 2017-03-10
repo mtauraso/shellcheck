@@ -43,6 +43,7 @@ library
       json,
       mtl >= 2.2.1,
       parsec,
+      pretty-show,
       regex-tdfa,
       QuickCheck >= 2.7.4,
       -- When cabal supports it, move this to setup-depends:
@@ -78,6 +79,7 @@ executable shellcheck
       mtl >= 2.2.1,
       parsec,
       regex-tdfa,
+      pretty-show,
       QuickCheck >= 2.7.4
     main-is: shellcheck.hs
 
@@ -92,6 +94,7 @@ test-suite test-shellcheck
       mtl >= 2.2.1,
       parsec,
       regex-tdfa,
+      pretty-show,
       QuickCheck >= 2.7.4
     main-is: test/shellcheck.hs
 

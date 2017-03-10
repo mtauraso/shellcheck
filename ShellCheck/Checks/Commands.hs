@@ -25,6 +25,10 @@ module ShellCheck.Checks.Commands (checker
     , ShellCheck.Checks.Commands.runTests
 ) where
 
+
+import Text.Show.Pretty as Pr
+import Debug.Trace
+
 import ShellCheck.AST
 import ShellCheck.ASTLib
 import ShellCheck.AnalyzerLib
@@ -85,6 +89,7 @@ commandChecks = [
     ,checkDeprecatedTempfile
     ,checkDeprecatedEgrep
     ,checkDeprecatedFgrep
+    ,checkSetShortOpts
     ]
 
 buildCommandMap :: [CommandCheck] -> Map.Map CommandName (Token -> Analysis)
@@ -553,6 +558,35 @@ checkSetAssignment = CommandCheck (Exactly "set") (f . arguments)
     literal _ = "*"
 
 
+{-
+ - TODO: list of short opts from : https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html
+ - recommend changes to long version in the warning message
+ - TODO: Properly parse and iterate over sets arguments to catch corner cases
+-}
+prop_checkSetShortOpts1 = verifyNot checkSetShortOpts "set -o errexit"
+prop_checkSetShortOpts2 = verifyNot checkSetShortOpts "set"
+prop_checkSetShortOpts3 = verify checkSetShortOpts "set +e"
+prop_checkSetShortOpts4 = verify checkSetShortOpts "set -e"
+--prop_checkSetShortOpts4 = verify checkSetShortOpts "set -ex"
+
+checkSetShortOpts = CommandCheck (Exactly "set") check 
+where
+  check = mapM_ getAllFlags
+  checkArgGroup (T_NormalWord id arg) = when (isOptionString arg) $ mapM_ checkArg arg
+  checkArgGroup _ = return ()
+  checkArg arg = trace(show arg) $ msg (getId arg)
+
+  isOptionString tok = ("-" `isPrefixOf` literal) || ("+" `isPrefixOf` literal) where
+    literal = onlyLiteralString tok
+  
+  --f ((T_NormalWord _ (Token ('-':arg:_))):_) = when (isShortOptLetter arg) $ msg (getId arg)
+  f (arg:_) = trace (show arg) $ when ( isShortOpt $ trace(show (onlyLiteralString arg)) onlyLiteralString arg) $ msg (getId arg)
+  --f args = return trace (Pr.ppShow args) ()
+  f _ = return ()
+  msg id = warn id 2900 "xcxcwarning"
+  isShortOpt str = not $ str == "+o" || str == "-o" || length str > 2
+  isShortOptLetter char = not $ char == 'o'
+
 prop_checkExportedExpansions1 = verify checkExportedExpansions "export $foo"
 prop_checkExportedExpansions2 = verify checkExportedExpansions "export \"$foo\""
 prop_checkExportedExpansions3 = verifyNot checkExportedExpansions "export foo"
@@ -680,6 +714,7 @@ checkDeprecatedEgrep = CommandCheck (Basename "egrep") $
 prop_checkDeprecatedFgrep = verify checkDeprecatedFgrep "fgrep '*' files"
 checkDeprecatedFgrep = CommandCheck (Basename "fgrep") $
     \t -> info (getId t) 2197 "fgrep is non-standard and deprecated. Use grep -F instead."
+
 
 return []
 runTests =  $( [| $(forAllProperties) (quickCheckWithResult (stdArgs { maxSuccess = 1 }) ) |])
